@@ -33,12 +33,19 @@ else:
     options.add_argument(f"--data-path={mkdtemp()}")
     options.add_argument(f"--disk-cache-dir={mkdtemp()}")
     options.add_argument("--remote-debugging-port=9222")
-    driver = webdriver.Chrome(chrome_driver_path, options=options)
+    service = Service(chrome_driver_path)
+    driver = webdriver.Chrome(service=service, options=options)
+    
+def is_running_in_docker():
+    """Check if the code is running inside a Docker container."""
+    cgroup_file = "/proc/self/cgroup"
+    return os.path.exists(cgroup_file) and any("docker" in line for line in open(cgroup_file))
+    
     
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 wait = WebDriverWait(driver, 30)
 url = 'https://httpbin.org/#/Response_formats/get_json'
-logging.info(f"Opening {url} page on {os_name}")
+logging.info(f"Opening {url} page on {os_name}, __name__: {__name__}, docker execution: {is_running_in_docker()}")
 driver.get(url)
 logging.info(f"Clicking on GET /json")
 wait.until(EC.visibility_of_element_located((By.ID, "operations-Response formats-get_json"))).click()
