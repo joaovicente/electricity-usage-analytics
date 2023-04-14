@@ -128,3 +128,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .vscode/*
+
+# Project specific
+execute.bat
+local_storage/*
+test_storage/*

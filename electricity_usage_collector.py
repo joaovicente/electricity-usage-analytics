@@ -27,9 +27,10 @@ from enum import Enum
 # 3. Instantiate webdriver.Crome() using the path to chromdriver 
 
 class ElectricityUsageCollector():
-    def __init__(self, username, password, runtime_mode):
+    def __init__(self, username, password, storage_path, runtime_mode):
         self.username = username
         self.password = password
+        self.storage_path = storage_path
         self.runtime_mode = runtime_mode
         self.collected_csv_data = None
         self.last_updated_datetime = None
@@ -79,7 +80,18 @@ class ElectricityUsageCollector():
         self.last_updated_datetime = last_updated_datetime
     
     def retireve_last_updated_datetime(self):
-        # TODO: Implement detection of latest data collected from file/object name HDF-2023-01-02T2330.csv 
+        last_updated_datetime = None
+        # detection of latest data collected from file/object name HDF-2023-01-02T2330.csv
+        if os.path.exists(self.storage_path):
+            stored_files = os.listdir(self.storage_path)
+            if len(stored_files) > 0:
+                latest_file = stored_files[-1]
+                logging.info(f"latest file persisted was {latest_file}")
+                self.last_updated_datetime = datetime.strptime(latest_file, "HDF-%Y-%m-%dT%H%M.csv")
+        elif self.storage_path.startswith("s3"):
+            raise NotImplementedError("S3 storage not yet supported")
+        else:
+            raise RuntimeError(f"retireve_last_updated_datetime Invalid or inexistent storage path: {self.storage_path}")
         return self.last_updated_datetime
         
     def simulate_collection(self, csv_data: str):
@@ -147,9 +159,9 @@ class ElectricityUsageCollector():
         logging.info("HDF last two lines:")
         logging.info(f"{lines[-2]}")
         logging.info(f"{lines[-1]}")
-        logging.info(f"Removing HDF file")
+        logging.info(f"Removing downloaded HDF file")
         os.remove(file)
-        logging.info(f"Removed HDF file")
+        logging.info(f"Removed downloaded HDF file")
   
     def collected_row_datetime_not_persisted(self, row: str) -> datetime:
         # Sample CSV line
@@ -166,7 +178,7 @@ class ElectricityUsageCollector():
         logging.debug(f"usage_row_to_datetime parsed datetime: {parsed_datetime}")
         return self.last_updated_datetime == None or parsed_datetime > self.last_updated_datetime
 
-    def filter_data_already_persisted(self):
+    def filter_data_already_persisted(self) -> str:
         list_of_rows = self.collected_csv_data.splitlines()
         new_rows = [r for r in list_of_rows[1:] if self.collected_row_datetime_not_persisted(r)]
         data_to_be_persisted = [list_of_rows[0]] + new_rows
@@ -175,20 +187,26 @@ class ElectricityUsageCollector():
     def generate_filename(self):
         # HDF-2022-12-30T2330.csv
         return self.last_collected_datetime.strftime("HDF-%Y-%m-%dT%H%M.csv")
-    
+   
     def persist_collected_data(self):
         # persist only data not previously persisted
         data_to_be_persisted = self.filter_data_already_persisted()
         filename = self.generate_filename()
-        if self.runtime_mode != RuntimeMode.TEST:
-            #TODO: Store collection data
-            logging.warning("persist_collected_data() not implemented")
         data_to_be_persisted_rows = data_to_be_persisted.splitlines()
         row_count = len(data_to_be_persisted_rows)
-        logging.info(f"Persisting {row_count} HDF rows in {filename}")
-        if row_count > 0: logging.info(f"line 1: {data_to_be_persisted_rows[0]}") 
-        if row_count > 1: logging.info(f"line 2: {data_to_be_persisted_rows[1]}") 
-        if row_count > 0: logging.info(f"last line: {data_to_be_persisted_rows[-1]}") 
+        if self.storage_path is not None:
+            if row_count > 1:
+                #TODO: Store collection data in S3
+                logging.info(f"Persisting {row_count} HDF rows in {filename}")
+                if row_count > 0: logging.info(f"line 1: {data_to_be_persisted_rows[0]}") 
+                if row_count > 1: logging.info(f"line 2: {data_to_be_persisted_rows[1]}") 
+                if row_count > 0: logging.info(f"last line: {data_to_be_persisted_rows[-1]}") 
+                with open(os.path.join(self.storage_path, filename), "w") as file:
+                    file.write(data_to_be_persisted)
+            else:
+                logging.info(f"No new data available for collection")
+                data_to_be_persisted = None
+                filename = None
         return filename, data_to_be_persisted
 
 def parse_cli_args():
@@ -197,9 +215,10 @@ def parse_cli_args():
     # Add arguments
     parser.add_argument('-u', '--username', help='Username')
     parser.add_argument('-p', '--password', help='Password')
+    parser.add_argument('-s', '--storage-path', help='Path where collected data will be stored. examples: /local/path, ./relative/path, s3://bucket/prefix')
     # Parse the arguments
     args = parser.parse_args()
-    return args.username, args.password
+    return args.username, args.password, args.storage_path
     
 # Runtime modes:
 class RuntimeMode(Enum):
@@ -225,8 +244,8 @@ runtime_mode = detect_runtime_mode()
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 
 if runtime_mode != RuntimeMode.TEST:
-    username, password = parse_cli_args()
-    collector = ElectricityUsageCollector(username, password, runtime_mode)
+    username, password, storage_path = parse_cli_args()
+    collector = ElectricityUsageCollector(username=username, password=password, storage_path=storage_path, runtime_mode=runtime_mode)
     collector.retireve_last_updated_datetime()
     collector.collect()
     collector.persist_collected_data()
