@@ -197,11 +197,12 @@ class ElectricityUsageCollector():
         if self.storage_path is not None:
             if row_count > 1:
                 #TODO: Store collection data in S3
-                logging.info(f"Persisting {row_count} HDF rows in {filename}")
+                file_path = os.path.join(self.storage_path, filename)
+                logging.info(f"Persisting {row_count} HDF rows in {file_path}")
                 if row_count > 0: logging.info(f"line 1: {data_to_be_persisted_rows[0]}") 
                 if row_count > 1: logging.info(f"line 2: {data_to_be_persisted_rows[1]}") 
                 if row_count > 0: logging.info(f"last line: {data_to_be_persisted_rows[-1]}") 
-                with open(os.path.join(self.storage_path, filename), "w") as file:
+                with open(file_path, "w") as file:
                     file.write(data_to_be_persisted)
             else:
                 logging.info(f"No new data available for collection")

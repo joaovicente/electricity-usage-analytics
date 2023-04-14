@@ -130,6 +130,7 @@ dmypy.json
 .vscode/*
 
 # Project specific
-execute.bat
+execute_*.bat
 local_storage/*
 test_storage/*
+docker_storage/HDF-2023-04-13T0630.csv
