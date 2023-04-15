@@ -3,6 +3,7 @@ from datetime import timedelta
 from electricity_usage_collector import ElectricityUsageCollector, RuntimeMode
 import os
 import shutil
+import pytest
 
 def mock_collection_data_as_list(start_datetime, end_datetime, fixed_usage=True):
     header = 'MPRN,Meter Serial Number,Read Value,Read Type,Read Date and End Time'
@@ -81,4 +82,13 @@ def test_consecutive_day_collection():
     filename, persisted_data = collector.persist_collected_data()
     assert filename == None
     assert persisted_data == None
-    
+
+def test_list_s3_objects():
+    storage_path = "s3://jdvhome-dev-data/raw-landing/energia/usage-timeseries"
+    collector = ElectricityUsageCollector(username="username", password="password", storage_path=storage_path, runtime_mode=RuntimeMode.TEST)
+    if os.environ.get('AWS_ACCESS_KEY_ID', None) != None and os.environ.get('AWS_SECRET_ACCESS_KEY', None) != None:
+        objects = collector.list_s3_objects()
+        len(objects) > 0
+    else:
+        pytest.fail("AWS Credentials not defined as environment variables")
+        

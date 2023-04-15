@@ -11,6 +11,7 @@ RUN yum install atk cups-libs gtk3 libXcomposite alsa-lib \
     libXtst pango at-spi2-atk libXt xorg-x11-server-Xvfb \
     xorg-x11-xauth dbus-glib dbus-glib-devel -y
 RUN pip install selenium
+RUN pip install boto3
 COPY --from=build /opt/chrome-linux /opt/chrome
 COPY --from=build /opt/chromedriver /opt/
 COPY electricity_usage_collector.py ./

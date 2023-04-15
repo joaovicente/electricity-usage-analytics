@@ -3,15 +3,13 @@ import logging
 import argparse
 import os
 import platform
-from datetime import date
+import boto3
 from datetime import datetime
-from datetime import timedelta
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys
 from tempfile import mkdtemp
 from enum import Enum
 
@@ -78,20 +76,36 @@ class ElectricityUsageCollector():
         if self.runtime_mode != RuntimeMode.TEST:
             raise RuntimeError("simulate_last_updated_datetime only supported in test mode")
         self.last_updated_datetime = last_updated_datetime
-    
+ 
+    def bucket_and_path(self):
+        path_parts = self.storage_path.split('/')
+        bucket_name = path_parts[2]
+        s3_path = '/'.join(path_parts[3:])
+        return bucket_name, s3_path
+        
+  
+    def list_s3_objects(self):
+        #"s3://{bucket_name}/{s3_path}"
+        # s3://jdvhome-dev-data/raw-landing/energia/usage-timeseries
+        s3 = boto3.client('s3')
+        bucket_name, s3_path = self.bucket_and_path()
+        response = s3.list_objects_v2(Bucket=bucket_name, Prefix=s3_path)
+        files = [e['Key'].split('/')[-1] for e in response.get('Contents', [])]
+        return files
+   
     def retireve_last_updated_datetime(self):
         last_updated_datetime = None
         # detection of latest data collected from file/object name HDF-2023-01-02T2330.csv
-        if os.path.exists(self.storage_path):
-            stored_files = os.listdir(self.storage_path)
-            if len(stored_files) > 0:
-                latest_file = stored_files[-1]
-                logging.info(f"latest file persisted was {latest_file}")
-                self.last_updated_datetime = datetime.strptime(latest_file, "HDF-%Y-%m-%dT%H%M.csv")
-        elif self.storage_path.startswith("s3"):
-            raise NotImplementedError("S3 storage not yet supported")
+        if self.storage_path.startswith("s3://"):
+            persisted_files  = self.list_s3_objects()
+        elif os.path.exists(self.storage_path):
+            persisted_files = os.listdir(self.storage_path)
         else:
             raise RuntimeError(f"retireve_last_updated_datetime Invalid or inexistent storage path: {self.storage_path}")
+        if len(persisted_files) > 0:
+            latest_file = persisted_files[-1]
+            logging.info(f"latest file persisted was {latest_file}")
+            self.last_updated_datetime = datetime.strptime(latest_file, "HDF-%Y-%m-%dT%H%M.csv")
         return self.last_updated_datetime
         
     def simulate_collection(self, csv_data: str):
@@ -187,7 +201,18 @@ class ElectricityUsageCollector():
     def generate_filename(self):
         # HDF-2022-12-30T2330.csv
         return self.last_collected_datetime.strftime("HDF-%Y-%m-%dT%H%M.csv")
-   
+  
+    def persist_in_filesystem(self, filename, data_to_be_persisted):
+        file_path = os.path.join(self.storage_path, filename)
+        with open(file_path, "w") as file:
+            file.write(data_to_be_persisted)
+            
+    def persist_in_s3(self, filename, data_to_be_persisted):
+        s3 = boto3.client('s3')
+        bucket_name, s3_path = self.bucket_and_path()
+        key = s3_path + '/' + filename
+        response = s3.put_object(Bucket=bucket_name, Key=key, Body=data_to_be_persisted)
+            
     def persist_collected_data(self):
         # persist only data not previously persisted
         data_to_be_persisted = self.filter_data_already_persisted()
@@ -196,14 +221,14 @@ class ElectricityUsageCollector():
         row_count = len(data_to_be_persisted_rows)
         if self.storage_path is not None:
             if row_count > 1:
-                #TODO: Store collection data in S3
-                file_path = os.path.join(self.storage_path, filename)
-                logging.info(f"Persisting {row_count} HDF rows in {file_path}")
+                logging.info(f"Persisting {filename} with {row_count} HDF rows in {self.storage_path}")
                 if row_count > 0: logging.info(f"line 1: {data_to_be_persisted_rows[0]}") 
                 if row_count > 1: logging.info(f"line 2: {data_to_be_persisted_rows[1]}") 
                 if row_count > 0: logging.info(f"last line: {data_to_be_persisted_rows[-1]}") 
-                with open(file_path, "w") as file:
-                    file.write(data_to_be_persisted)
+                if self.storage_path.startswith("s3://"):
+                    self.persist_in_s3(filename, data_to_be_persisted)
+                elif os.path.exists(self.storage_path):
+                    self.persist_in_filesystem(filename, data_to_be_persisted)
             else:
                 logging.info(f"No new data available for collection")
                 data_to_be_persisted = None
@@ -229,8 +254,7 @@ class RuntimeMode(Enum):
     
 def detect_runtime_mode():
     os_name = platform.system()
-    cgroup_file = "/proc/self/cgroup"
-    running_in_docker = os.path.exists(cgroup_file) and any("docker" in line for line in open(cgroup_file))
+    running_in_docker = os.environ.get('LAMBDA_TASK_ROOT', 'none') != 'none'
     if __name__ != '__main__':
         runtime_mode = RuntimeMode.TEST
     elif __name__ == '__main__' and os_name == 'Windows':
@@ -238,7 +262,7 @@ def detect_runtime_mode():
     elif __name__ == '__main__' and os_name == 'Linux' and running_in_docker:
         runtime_mode = RuntimeMode.DOCKER
     else:
-        raise RuntimeError("Unknown runtime mode")
+        raise RuntimeError(f"Unknown runtime mode: os: {os_name}, __main__: {__name__}, running_in_docker: {running_in_docker}")
     return runtime_mode
     
 runtime_mode = detect_runtime_mode()
