@@ -83,6 +83,7 @@ def test_consecutive_day_collection():
     assert filename == None
     assert persisted_data == None
 
+@pytest.mark.skip(reason="Skipped unless S3 testing is required")
 def test_list_s3_objects():
     storage_path = "s3://jdvhome-dev-data/raw-landing/energia/usage-timeseries"
     collector = ElectricityUsageCollector(username="username", password="password", storage_path=storage_path, runtime_mode=RuntimeMode.TEST)
