@@ -22,7 +22,7 @@ def mock_collection_data_as_list(start_datetime, end_datetime, fixed_usage=True)
     
 def test_electricity_usage_collector_first_collection():
     # First collection
-    collector = ElectricityUsageCollector(username="username", password="password", storage_path=None, runtime_mode=RuntimeMode.TEST)
+    collector = ElectricityUsageCollector(username="username", password="password", storage_path=None, dry_run=False, runtime_mode=RuntimeMode.TEST)
     collector.simulate_last_updated_datetime(None) # simulate no previous update
     collection_1 = mock_collection_data_as_list(
         datetime(year=2023, month=1, day=1, hour=0, minute=0), 
@@ -34,7 +34,7 @@ def test_electricity_usage_collector_first_collection():
     
 def test_electricity_usage_collector_second_collection():
     # second collection
-    collector = ElectricityUsageCollector(username="username", password="password", storage_path=None, runtime_mode=RuntimeMode.TEST)
+    collector = ElectricityUsageCollector(username="username", password="password", storage_path=None, dry_run=False, runtime_mode=RuntimeMode.TEST)
      # simulate no previous update
     collector.simulate_last_updated_datetime(datetime(year=2023, month=1, day=2, hour=23, minute=30))
     collection_2 = mock_collection_data_as_list(
@@ -55,7 +55,7 @@ def test_consecutive_day_collection():
     os.mkdir(storage_path)
     
     # first day 
-    collector = ElectricityUsageCollector(username="username", password="password", storage_path=storage_path, runtime_mode=RuntimeMode.TEST)
+    collector = ElectricityUsageCollector(username="username", password="password", storage_path=storage_path, dry_run=False, runtime_mode=RuntimeMode.TEST)
     collector.retireve_last_updated_datetime()
     collection_1 = mock_collection_data_as_list(
         datetime(year=2023, month=1, day=1, hour=0, minute=0), 
@@ -64,7 +64,7 @@ def test_consecutive_day_collection():
     collector.persist_collected_data()
     
     # second day 
-    collector = ElectricityUsageCollector(username="username", password="password", storage_path=storage_path, runtime_mode=RuntimeMode.TEST)
+    collector = ElectricityUsageCollector(username="username", password="password", storage_path=storage_path, dry_run=False, runtime_mode=RuntimeMode.TEST)
     collector.retireve_last_updated_datetime()
     collection_2 = mock_collection_data_as_list(
         datetime(year=2023, month=1, day=1, hour=0, minute=0), 
@@ -73,7 +73,7 @@ def test_consecutive_day_collection():
     collector.persist_collected_data()
     
     # second day - second collection
-    collector = ElectricityUsageCollector(username="username", password="password", storage_path=storage_path, runtime_mode=RuntimeMode.TEST)
+    collector = ElectricityUsageCollector(username="username", password="password", storage_path=storage_path, dry_run=False, runtime_mode=RuntimeMode.TEST)
     collector.retireve_last_updated_datetime()
     collection_2 = mock_collection_data_as_list(
         datetime(year=2023, month=1, day=1, hour=0, minute=0), 

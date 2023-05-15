@@ -25,7 +25,7 @@ from enum import Enum
 # 3. Instantiate webdriver.Crome() using the path to chromdriver 
 
 class ElectricityUsageCollector():
-    def __init__(self, username, password, storage_path, runtime_mode):
+    def __init__(self, username, password, storage_path, dry_run, runtime_mode):
         self.username = username
         self.password = password
         self.storage_path = storage_path
@@ -35,6 +35,7 @@ class ElectricityUsageCollector():
         self.last_collected_datetime = None
         os_name = platform.system()
         logging.info(f"runtime_mode: {runtime_mode}")
+        logging.info(f"dry_run: {dry_run}")
         logging.info(f"username: {username}")
         if username is None:
             raise ValueError('username is None')
@@ -89,8 +90,17 @@ class ElectricityUsageCollector():
         # s3://jdvhome-dev-data/raw-landing/energia/usage-timeseries
         s3 = boto3.client('s3')
         bucket_name, s3_path = self.bucket_and_path()
-        response = s3.list_objects_v2(Bucket=bucket_name, Prefix=s3_path)
-        files = [e['Key'].split('/')[-1] for e in response.get('Contents', [])]
+        files = []
+        # FIXME: pagination not implemented yet (only required when more than 1000 files in bucket)
+        #pages_left = True
+        #continuation_token = None
+        #while pages_left:
+        #    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=s3_path, MaxKeys=1000, ContinuationToken=continuation_token)
+        #    files.extend([e['Key'].split('/')[-1] for e in response.get('Contents', [])])
+        #    pages_left = response.get('IsTruncated')
+        #    continuation_token = response.get('NextContinuationToken')
+        response = s3.list_objects_v2(Bucket=bucket_name, Prefix=s3_path, MaxKeys=1000)
+        files.extend([e['Key'].split('/')[-1] for e in response.get('Contents', [])])
         return files
    
     def retireve_last_updated_datetime(self):
@@ -239,12 +249,15 @@ def parse_cli_args():
     # Create the parser
     parser = argparse.ArgumentParser(description="Collects electricity usage", epilog="Usage: electricity_usage_extraction.py -u bob@gmail.com -p mypassword")
     # Add arguments
-    parser.add_argument('-u', '--username', help='Username')
-    parser.add_argument('-p', '--password', help='Password')
-    parser.add_argument('-s', '--storage-path', help='Path where collected data will be stored. examples: /local/path, ./relative/path, s3://bucket/prefix')
+    parser.add_argument('-u', '--username', default=os.environ.get('USERNAME', None), help='Username')
+    parser.add_argument('-p', '--password', default=os.environ.get('PASSWORD', None), help='Password')
+    parser.add_argument('-s', '--storage-path', default=os.environ.get('STORAGE_PATH', None), 
+                        help='Path where collected data will be stored. examples: /local/path, ./relative/path, s3://bucket/prefix')
+    parser.add_argument('-d', '--dry-run', default=os.environ.get('DRY_RUN', False) == 'true', action='store_true', 
+                        help='Collect data but do not store it. Used for testing')
     # Parse the arguments
     args = parser.parse_args()
-    return args.username, args.password, args.storage_path
+    return args.username, args.password, args.storage_path, args.dry_run
     
 # Runtime modes:
 class RuntimeMode(Enum):
@@ -269,8 +282,16 @@ runtime_mode = detect_runtime_mode()
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 
 if runtime_mode != RuntimeMode.TEST:
-    username, password, storage_path = parse_cli_args()
-    collector = ElectricityUsageCollector(username=username, password=password, storage_path=storage_path, runtime_mode=runtime_mode)
+    username, password, storage_path, dry_run = parse_cli_args()
+    collector = ElectricityUsageCollector(username=username, 
+                                          password=password, 
+                                          storage_path=storage_path, 
+                                          dry_run=dry_run,
+                                          runtime_mode=runtime_mode)
     collector.retireve_last_updated_datetime()
     collector.collect()
-    collector.persist_collected_data()
+    if dry_run:
+        logging.info("Dry run. Not persisting collected data")
+    else:
+        collector.persist_collected_data()
+        

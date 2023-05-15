@@ -23,6 +23,9 @@ $ docker run -v %cd%\docker_storage:/var/local_storage -it --entrypoint python j
 # Run script in docker image using S3 persistence
 $ docker run -v %cd%\docker_storage:/var/local_storage --env-file tmp\env_file -it --entrypoint python joao/selenium-python electricity_usage_collector.py -u username -p password -s s3://jdvhome-dev-data/raw-landing/energia/usage-timeseries
 
+# Run script in docker image without storing extracted data
+$ docker run -v %cd%\docker_storage:/var/local_storage --env-file tmp\env_file -it --entrypoint python joao/selenium-python electricity_usage_collector.py -u username -p password --dry-run
+
 # Where tmp\envfile contains
 #AWS_ACCESS_KEY_ID=...
 #AWS_SECRET_ACCESS_KEY=...
