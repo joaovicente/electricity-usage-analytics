@@ -22,7 +22,8 @@ from enum import Enum
 # Installation steps
 # 1. Download and install Chrome driver from https://sites.google.com/chromium.org/driver/home (script assumes it is installed in your Downloads folder)
 # 2. Install selenium `pip install selenium`
-# 3. Instantiate webdriver.Crome() using the path to chromdriver 
+# 3. Instantiate webdriver.Crome() using the path to chromdriver
+
 
 class ElectricityUsageCollector():
     def __init__(self, username, password, storage_path, dry_run, runtime_mode):
@@ -46,8 +47,8 @@ class ElectricityUsageCollector():
             chrome_driver_path = rf'C:\Users\{os.environ.get("USERNAME")}\Downloads\chromedriver'
             options = None
         elif os_name == 'Linux':
-            self.download_file_path = rf'/var/task'
-            chrome_driver_path = rf'/opt/chromedriver'
+            self.download_file_path = '/var/task'
+            chrome_driver_path = '/opt/chromedriver'
             options = webdriver.ChromeOptions()
             options.binary_location = '/opt/chrome/chrome'
             options.add_argument('--headless')
@@ -67,7 +68,7 @@ class ElectricityUsageCollector():
         if runtime_mode != RuntimeMode.TEST:
             service = Service(chrome_driver_path)
             self.driver = webdriver.Chrome(service=service, options=options)
-            
+
     def simulate_last_updated_datetime(self, last_updated_datetime: datetime):
         # Use this function only for testing purposes
         # last_updated_datetime is None to simulate no previous collection data persisted
@@ -77,24 +78,23 @@ class ElectricityUsageCollector():
         if self.runtime_mode != RuntimeMode.TEST:
             raise RuntimeError("simulate_last_updated_datetime only supported in test mode")
         self.last_updated_datetime = last_updated_datetime
- 
+
     def bucket_and_path(self):
         path_parts = self.storage_path.split('/')
         bucket_name = path_parts[2]
         s3_path = '/'.join(path_parts[3:])
         return bucket_name, s3_path
-        
-  
+
     def list_s3_objects(self):
-        #"s3://{bucket_name}/{s3_path}"
+        # "s3://{bucket_name}/{s3_path}"
         # s3://jdvhome-dev-data/raw-landing/energia/usage-timeseries
         s3 = boto3.client('s3')
         bucket_name, s3_path = self.bucket_and_path()
         files = []
         # FIXME: pagination not implemented yet (only required when more than 1000 files in bucket)
-        #pages_left = True
-        #continuation_token = None
-        #while pages_left:
+        # pages_left = True
+        # continuation_token = None
+        # while pages_left:
         #    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=s3_path, MaxKeys=1000, ContinuationToken=continuation_token)
         #    files.extend([e['Key'].split('/')[-1] for e in response.get('Contents', [])])
         #    pages_left = response.get('IsTruncated')
@@ -102,12 +102,11 @@ class ElectricityUsageCollector():
         response = s3.list_objects_v2(Bucket=bucket_name, Prefix=s3_path, MaxKeys=1000)
         files.extend([e['Key'].split('/')[-1] for e in response.get('Contents', [])])
         return files
-   
+
     def retireve_last_updated_datetime(self):
-        last_updated_datetime = None
         # detection of latest data collected from file/object name HDF-2023-01-02T2330.csv
         if self.storage_path.startswith("s3://"):
-            persisted_files  = self.list_s3_objects()
+            persisted_files = self.list_s3_objects()
         elif os.path.exists(self.storage_path):
             persisted_files = os.listdir(self.storage_path)
         else:
@@ -117,13 +116,13 @@ class ElectricityUsageCollector():
             logging.info(f"latest file persisted was {latest_file}")
             self.last_updated_datetime = datetime.strptime(latest_file, "HDF-%Y-%m-%dT%H%M.csv")
         return self.last_updated_datetime
-        
+
     def simulate_collection(self, csv_data: str):
         # Use this function only for testing purposes
         if self.runtime_mode != RuntimeMode.TEST:
             raise RuntimeError("simulate_collection only supported in test mode")
         self.collected_csv_data = csv_data
-        
+
     def collect(self):
         wait = WebDriverWait(self.driver, 30)
         self.driver.get('https://www.esbnetworks.ie')
@@ -156,14 +155,14 @@ class ElectricityUsageCollector():
         logging.info("Downloading HDF")
         download_hdf.click()
         time.sleep(10)
-        logging.info(f"Downloaded HDF")
-        logging.info(f"Web collection completed")
+        logging.info("Downloaded HDF")
+        logging.info("Web collection completed")
         self.driver.close()
-        
+
         logging.info("Processing HDF file")
         # TODO: Wait until HDF is in Downloads
         hdf_files = [f for f in os.listdir(self.download_file_path) if f.startswith("HDF")]
-        num_files_found = len(hdf_files) 
+        num_files_found = len(hdf_files)
         if num_files_found != 1:
             raise ValueError(f"Found {num_files_found} HDF files in {self.download_file_path}")
         file = os.path.join(self.download_file_path, hdf_files[0])
@@ -183,46 +182,46 @@ class ElectricityUsageCollector():
         logging.info("HDF last two lines:")
         logging.info(f"{lines[-2]}")
         logging.info(f"{lines[-1]}")
-        logging.info(f"Removing downloaded HDF file")
+        logging.info("Removing downloaded HDF file")
         os.remove(file)
-        logging.info(f"Removed downloaded HDF file")
-  
+        logging.info("Removed downloaded HDF file")
+
     def collected_row_datetime_not_persisted(self, row: str) -> datetime:
         # Sample CSV line
         # 10305914213,31774820,0.174000,Active Import Interval (kW),05-04-2023 01:30
         columns = row.split(',')
         if len(columns) != 5:
-            raise ValueError(f"Unexpected number of columns in HDF row: {len(columns)}: {columns}") 
+            raise ValueError(f"Unexpected number of columns in HDF row: {len(columns)}: {columns}")
         row_datetime = columns[-1]
         parsed_datetime = datetime.strptime(row_datetime, "%d-%m-%Y %H:%M")
-        if self.last_collected_datetime == None:
+        if self.last_collected_datetime is None:
             self.last_collected_datetime = parsed_datetime
         elif parsed_datetime > self.last_collected_datetime:
             self.last_collected_datetime = parsed_datetime
         logging.debug(f"usage_row_to_datetime parsed datetime: {parsed_datetime}")
-        return self.last_updated_datetime == None or parsed_datetime > self.last_updated_datetime
+        return self.last_updated_datetime is None or parsed_datetime > self.last_updated_datetime
 
     def filter_data_already_persisted(self) -> str:
         list_of_rows = self.collected_csv_data.splitlines()
         new_rows = [r for r in list_of_rows[1:] if self.collected_row_datetime_not_persisted(r)]
         data_to_be_persisted = [list_of_rows[0]] + new_rows
         return '\n'.join(data_to_be_persisted)
-        
+
     def generate_filename(self):
         # HDF-2022-12-30T2330.csv
         return self.last_collected_datetime.strftime("HDF-%Y-%m-%dT%H%M.csv")
-  
+
     def persist_in_filesystem(self, filename, data_to_be_persisted):
         file_path = os.path.join(self.storage_path, filename)
         with open(file_path, "w") as file:
             file.write(data_to_be_persisted)
-            
+
     def persist_in_s3(self, filename, data_to_be_persisted):
         s3 = boto3.client('s3')
         bucket_name, s3_path = self.bucket_and_path()
         key = s3_path + '/' + filename
-        response = s3.put_object(Bucket=bucket_name, Key=key, Body=data_to_be_persisted)
-            
+        s3.put_object(Bucket=bucket_name, Key=key, Body=data_to_be_persisted)
+
     def persist_collected_data(self):
         # persist only data not previously persisted
         data_to_be_persisted = self.filter_data_already_persisted()
@@ -232,18 +231,22 @@ class ElectricityUsageCollector():
         if self.storage_path is not None:
             if row_count > 1:
                 logging.info(f"Persisting {filename} with {row_count} HDF rows in {self.storage_path}")
-                if row_count > 0: logging.info(f"line 1: {data_to_be_persisted_rows[0]}") 
-                if row_count > 1: logging.info(f"line 2: {data_to_be_persisted_rows[1]}") 
-                if row_count > 0: logging.info(f"last line: {data_to_be_persisted_rows[-1]}") 
+                if row_count > 0:
+                    logging.info(f"line 1: {data_to_be_persisted_rows[0]}")
+                if row_count > 1:
+                    logging.info(f"line 2: {data_to_be_persisted_rows[1]}")
+                if row_count > 0:
+                    logging.info(f"last line: {data_to_be_persisted_rows[-1]}")
                 if self.storage_path.startswith("s3://"):
                     self.persist_in_s3(filename, data_to_be_persisted)
                 elif os.path.exists(self.storage_path):
                     self.persist_in_filesystem(filename, data_to_be_persisted)
             else:
-                logging.info(f"No new data available for collection")
+                logging.info("No new data available for collection")
                 data_to_be_persisted = None
                 filename = None
         return filename, data_to_be_persisted
+
 
 def parse_cli_args():
     # Create the parser
@@ -251,20 +254,22 @@ def parse_cli_args():
     # Add arguments
     parser.add_argument('-u', '--username', default=os.environ.get('USERNAME', None), help='Username')
     parser.add_argument('-p', '--password', default=os.environ.get('PASSWORD', None), help='Password')
-    parser.add_argument('-s', '--storage-path', default=os.environ.get('STORAGE_PATH', None), 
+    parser.add_argument('-s', '--storage-path', default=os.environ.get('STORAGE_PATH', None),
                         help='Path where collected data will be stored. examples: /local/path, ./relative/path, s3://bucket/prefix')
-    parser.add_argument('-d', '--dry-run', default=os.environ.get('DRY_RUN', False) == 'true', action='store_true', 
+    parser.add_argument('-d', '--dry-run', default=os.environ.get('DRY_RUN', False) == 'true', action='store_true',
                         help='Collect data but do not store it. Used for testing')
     # Parse the arguments
     args = parser.parse_args()
     return args.username, args.password, args.storage_path, args.dry_run
-    
+
+
 # Runtime modes:
 class RuntimeMode(Enum):
-    TEST = 1 # Testing using electricity_usage_collector_test
-    LOCAL_WINDOWS = 2 # Testing collection using local chrome browser (Windows)
-    DOCKER = 3 # 3. Collection in docker container
-    
+    TEST = 1  # Testing using electricity_usage_collector_test
+    LOCAL_WINDOWS = 2  # Testing collection using local chrome browser (Windows)
+    DOCKER = 3  # 3. Collection in docker container
+
+
 def detect_runtime_mode():
     os_name = platform.system()
     running_in_docker = os.environ.get('LAMBDA_TASK_ROOT', 'none') != 'none'
@@ -277,15 +282,16 @@ def detect_runtime_mode():
     else:
         raise RuntimeError(f"Unknown runtime mode: os: {os_name}, __main__: {__name__}, running_in_docker: {running_in_docker}")
     return runtime_mode
-    
+
+
 runtime_mode = detect_runtime_mode()
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 
 if runtime_mode != RuntimeMode.TEST:
     username, password, storage_path, dry_run = parse_cli_args()
-    collector = ElectricityUsageCollector(username=username, 
-                                          password=password, 
-                                          storage_path=storage_path, 
+    collector = ElectricityUsageCollector(username=username,
+                                          password=password,
+                                          storage_path=storage_path,
                                           dry_run=dry_run,
                                           runtime_mode=runtime_mode)
     collector.retireve_last_updated_datetime()
@@ -294,4 +300,3 @@ if runtime_mode != RuntimeMode.TEST:
         logging.info("Dry run. Not persisting collected data")
     else:
         collector.persist_collected_data()
-        
