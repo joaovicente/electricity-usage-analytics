@@ -13,14 +13,17 @@ from selenium.webdriver.support import expected_conditions as EC
 from tempfile import mkdtemp
 from enum import Enum
 
-# HDF file returns usage data since installation of smart meter until the last available time (~12 hours ago)
+# HDF file returns usage data since installation of smart meter until the last
+# available time (~12 hours ago)
 # Usage approach:
 # Every day:
-# 1. Collect usage up until two-days-ago if in catchup mode or just the two-days-ago day if not in catchup mode
+# 1. Collect usage up until two-days-ago if in catchup mode or
+# just the two-days-ago day if not in catchup mode
 # 2. Append usage to output
 
 # Installation steps
-# 1. Download and install Chrome driver from https://sites.google.com/chromium.org/driver/home (script assumes it is installed in your Downloads folder)
+# 1. Download and install Chrome driver from https://sites.google.com/chromium.org/driver/home
+# (script assumes it is installed in your Downloads folder)
 # 2. Install selenium `pip install selenium`
 # 3. Instantiate webdriver.Crome() using the path to chromdriver
 
@@ -43,8 +46,10 @@ class ElectricityUsageCollector():
         if password is None:
             raise ValueError('password is None')
         if os_name == 'Windows':
-            self.download_file_path = rf'C:\Users\{os.environ.get("USERNAME")}\Downloads'
-            chrome_driver_path = rf'C:\Users\{os.environ.get("USERNAME")}\Downloads\chromedriver'
+            self.download_file_path =\
+                rf'C:\Users\{os.environ.get("USERNAME")}\Downloads'
+            chrome_driver_path =\
+                rf'C:\Users\{os.environ.get("USERNAME")}\Downloads\chromedriver'
             options = None
         elif os_name == 'Linux':
             self.download_file_path = '/var/task'
@@ -71,8 +76,10 @@ class ElectricityUsageCollector():
 
     def simulate_last_updated_datetime(self, last_updated_datetime: datetime):
         # Use this function only for testing purposes
-        # last_updated_datetime is None to simulate no previous collection data persisted
-        # last_updated_datetime is datetime to simulate previous collection data persisted
+        # last_updated_datetime is None to simulate no previous collection
+        # data persisted
+        # last_updated_datetime is datetime to simulate previous collection
+        # data persisted
         if last_updated_datetime is not None and not isinstance(last_updated_datetime, datetime):
             raise ValueError("simulate_last_updated_datetime parameter must be a datetime")
         if self.runtime_mode != RuntimeMode.TEST:
@@ -91,16 +98,19 @@ class ElectricityUsageCollector():
         s3 = boto3.client('s3')
         bucket_name, s3_path = self.bucket_and_path()
         files = []
-        # FIXME: pagination not implemented yet (only required when more than 1000 files in bucket)
+        # FIXME: pagination not implemented yet (only required when more than
+        # 1000 files in bucket)
         # pages_left = True
         # continuation_token = None
         # while pages_left:
-        #    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=s3_path, MaxKeys=1000, ContinuationToken=continuation_token)
+        #    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=s3_path, MaxKeys=1000,
+        #       ContinuationToken=continuation_token)
         #    files.extend([e['Key'].split('/')[-1] for e in response.get('Contents', [])])
         #    pages_left = response.get('IsTruncated')
         #    continuation_token = response.get('NextContinuationToken')
         response = s3.list_objects_v2(Bucket=bucket_name, Prefix=s3_path, MaxKeys=1000)
-        files.extend([e['Key'].split('/')[-1] for e in response.get('Contents', [])])
+        files.extend([e['Key'].split('/')[-1] for e in response.get(
+            'Contents', [])])
         return files
 
     def retireve_last_updated_datetime(self):
@@ -110,7 +120,8 @@ class ElectricityUsageCollector():
         elif os.path.exists(self.storage_path):
             persisted_files = os.listdir(self.storage_path)
         else:
-            raise RuntimeError(f"retireve_last_updated_datetime Invalid or inexistent storage path: {self.storage_path}")
+            raise RuntimeError("retrieve_last_updated_datetime Invalid or inexistent "
+                               + f"storage path: {self.storage_path}")
         if len(persisted_files) > 0:
             latest_file = persisted_files[-1]
             logging.info(f"latest file persisted was {latest_file}")
@@ -250,13 +261,18 @@ class ElectricityUsageCollector():
 
 def parse_cli_args():
     # Create the parser
-    parser = argparse.ArgumentParser(description="Collects electricity usage", epilog="Usage: electricity_usage_extraction.py -u bob@gmail.com -p mypassword")
+    parser = argparse.ArgumentParser(description="Collects electricity usage",
+                                     epilog="Usage: electricity_usage_extraction.py -u bob@gmail.com -p mypassword")
     # Add arguments
-    parser.add_argument('-u', '--username', default=os.environ.get('USERNAME', None), help='Username')
-    parser.add_argument('-p', '--password', default=os.environ.get('PASSWORD', None), help='Password')
+    parser.add_argument('-u', '--username', default=os.environ.get('USERNAME', None),
+                        help='Username')
+    parser.add_argument('-p', '--password', default=os.environ.get('PASSWORD', None),
+                        help='Password')
     parser.add_argument('-s', '--storage-path', default=os.environ.get('STORAGE_PATH', None),
-                        help='Path where collected data will be stored. examples: /local/path, ./relative/path, s3://bucket/prefix')
-    parser.add_argument('-d', '--dry-run', default=os.environ.get('DRY_RUN', False) == 'true', action='store_true',
+                        help='Path where collected data will be stored. examples: ' +
+                        'local/path, ./relative/path, s3://bucket/prefix')
+    parser.add_argument('-d', '--dry-run', default=os.environ.get('DRY_RUN', False) == 'true',
+                        action='store_true',
                         help='Collect data but do not store it. Used for testing')
     # Parse the arguments
     args = parser.parse_args()
@@ -280,7 +296,8 @@ def detect_runtime_mode():
     elif __name__ == '__main__' and os_name == 'Linux' and running_in_docker:
         runtime_mode = RuntimeMode.DOCKER
     else:
-        raise RuntimeError(f"Unknown runtime mode: os: {os_name}, __main__: {__name__}, running_in_docker: {running_in_docker}")
+        raise RuntimeError(f"Unknown runtime mode: os: {os_name}, __main__: {__name__}," +
+                           f"running_in_docker: {running_in_docker}")
     return runtime_mode
 
 
