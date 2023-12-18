@@ -1,0 +1,1 @@
+docker build -t joao/selenium-python .
