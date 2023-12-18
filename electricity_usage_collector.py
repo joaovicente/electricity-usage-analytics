@@ -98,8 +98,7 @@ class ElectricityUsageCollector():
         s3 = boto3.client('s3')
         bucket_name, s3_path = self.bucket_and_path()
         files = []
-        # FIXME: pagination not implemented yet (only required when more than
-        # 1000 files in bucket)
+        # FIXME: pagination not implemented yet (only required when more than 1000 files in bucket)
         # pages_left = True
         # continuation_token = None
         # while pages_left:
